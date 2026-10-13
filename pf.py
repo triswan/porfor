@@ -716,11 +716,13 @@ class SSHMultiPortForwarderApp:
         self.port_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.port_tree.bind("<Double-1>", self.on_toggle_rule_click)
+        self.port_tree.bind("<Double-1>", self.on_rule_double_click)
 
         tbl_actions = tk.Frame(ports_card, bg=self.bg_card)
         tbl_actions.pack(fill=tk.X, pady=(6, 0))
 
+        tk.Button(tbl_actions, text="Edit Selected...", bg=self.bg_input, fg=self.accent_blue,
+                  font=("Segoe UI", 8, "bold"), command=self.edit_selected_rule, relief="flat", padx=8).pack(side=tk.LEFT, padx=2)
         tk.Button(tbl_actions, text="Toggle Active", bg=self.bg_input, fg=self.text_main,
                   font=("Segoe UI", 8), command=self.toggle_selected_rules, relief="flat", padx=8).pack(side=tk.LEFT, padx=2)
         tk.Button(tbl_actions, text="Delete Selected", bg=self.bg_input, fg=self.accent_red,
@@ -728,7 +730,7 @@ class SSHMultiPortForwarderApp:
         tk.Button(tbl_actions, text="Clear All", bg=self.bg_input, fg=self.text_muted,
                   font=("Segoe UI", 8), command=self.clear_all_rules, relief="flat", padx=8).pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(tbl_actions, text="Tip: Double-click row to toggle active", style="Muted.TLabel").pack(side=tk.RIGHT)
+        ttk.Label(tbl_actions, text="Tip: Double-click row to edit", style="Muted.TLabel").pack(side=tk.RIGHT)
 
         # 4. Command Preview & Quick Import
         cmd_card = tk.LabelFrame(main_container, text=" SSH Command (-L Multi-Port) ", bg=self.bg_card,
@@ -880,7 +882,15 @@ class SSHMultiPortForwarderApp:
         dialog.geometry("400x260")
         dialog.configure(bg=self.bg_card)
         dialog.transient(self.root)
-        dialog.grab_set()
+        dialog.update_idletasks()
+        try:
+            dialog.grab_set()
+        except tk.TclError:
+            try:
+                dialog.wait_visibility()
+                dialog.grab_set()
+            except tk.TclError:
+                pass
 
         tk.Label(dialog, text="Masukkan nomor port yang ingin di-forward:", bg=self.bg_card,
                  fg=self.text_main, font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=14, pady=(12, 4))
@@ -932,6 +942,190 @@ class SSHMultiPortForwarderApp:
                   command=apply_batch, relief="flat", padx=10).pack(side=tk.RIGHT, padx=4)
         tk.Button(btn_row, text="Cancel", bg=self.bg_input, fg=self.text_main,
                   command=dialog.destroy, relief="flat", padx=10).pack(side=tk.RIGHT)
+
+    def edit_selected_rule(self):
+        sel = self.port_tree.selection()
+        if not sel:
+            messagebox.showinfo("Pilih Rule", "Silakan pilih salah satu port rule di tabel yang ingin diedit.")
+            return
+
+        if len(sel) > 1:
+            messagebox.showinfo("Pilih Satu Rule", "Silakan pilih hanya satu port rule di tabel untuk diedit.")
+            return
+
+        item_id = sel[0]
+        vals = list(self.port_tree.item(item_id, "values"))
+        if not vals:
+            return
+
+        is_enabled = "Enabled" in str(vals[0])
+        current_local = str(vals[1])
+        remote_target = str(vals[2])
+        if ":" in remote_target:
+            parts = remote_target.rsplit(":", 1)
+            current_remote_host = parts[0]
+            current_remote_port = parts[1]
+        else:
+            current_remote_host = "localhost"
+            current_remote_port = remote_target
+        current_label = str(vals[3])
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Edit Port Rule")
+        dialog.geometry("440x330")
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.bg_card)
+        dialog.transient(self.root)
+        dialog.update_idletasks()
+        try:
+            dialog.grab_set()
+        except tk.TclError:
+            try:
+                dialog.wait_visibility()
+                dialog.grab_set()
+            except tk.TclError:
+                pass
+
+        # Header
+        header = tk.Frame(dialog, bg=self.bg_card)
+        header.pack(fill=tk.X, padx=16, pady=(16, 10))
+        tk.Label(header, text="Edit Port Forwarding Rule", bg=self.bg_card,
+                 fg=self.accent_blue, font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        tk.Label(header, text="Ubah parameter port mapping dan deskripsi layanan.", bg=self.bg_card,
+                 fg=self.text_muted, font=("Segoe UI", 9)).pack(anchor="w", pady=(2, 0))
+
+        form_frame = tk.Frame(dialog, bg=self.bg_card)
+        form_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 6))
+
+        # Local Port
+        row_lp = tk.Frame(form_frame, bg=self.bg_card)
+        row_lp.pack(fill=tk.X, pady=4)
+        tk.Label(row_lp, text="Local Port:", width=15, anchor="w", bg=self.bg_card,
+                 fg=self.text_main, font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        entry_lp = ttk.Entry(row_lp, width=24)
+        entry_lp.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        entry_lp.insert(0, current_local)
+
+        # Remote Host
+        row_rh = tk.Frame(form_frame, bg=self.bg_card)
+        row_rh.pack(fill=tk.X, pady=4)
+        tk.Label(row_rh, text="Remote Host:", width=15, anchor="w", bg=self.bg_card,
+                 fg=self.text_main, font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        entry_rh = ttk.Entry(row_rh, width=24)
+        entry_rh.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        entry_rh.insert(0, current_remote_host)
+
+        # Remote Port
+        row_rp = tk.Frame(form_frame, bg=self.bg_card)
+        row_rp.pack(fill=tk.X, pady=4)
+        tk.Label(row_rp, text="Remote Port:", width=15, anchor="w", bg=self.bg_card,
+                 fg=self.text_main, font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        entry_rp = ttk.Entry(row_rp, width=24)
+        entry_rp.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        entry_rp.insert(0, current_remote_port)
+
+        # Service / Label
+        row_lbl = tk.Frame(form_frame, bg=self.bg_card)
+        row_lbl.pack(fill=tk.X, pady=4)
+        tk.Label(row_lbl, text="Service / Label:", width=15, anchor="w", bg=self.bg_card,
+                 fg=self.text_main, font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        entry_lbl = ttk.Entry(row_lbl, width=24)
+        entry_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        entry_lbl.insert(0, current_label)
+
+        # Enabled Checkbutton
+        enabled_var = tk.BooleanVar(value=is_enabled)
+        row_en = tk.Frame(form_frame, bg=self.bg_card)
+        row_en.pack(fill=tk.X, pady=(6, 4))
+        tk.Label(row_en, text="", width=15, bg=self.bg_card).pack(side=tk.LEFT)
+        ttk.Checkbutton(row_en, text="Active / Enabled", variable=enabled_var).pack(side=tk.LEFT)
+
+        # Buttons
+        btn_row = tk.Frame(dialog, bg=self.bg_card)
+        btn_row.pack(fill=tk.X, padx=16, pady=(10, 16))
+
+        def save_edits():
+            lp_str = entry_lp.get().strip()
+            rh_str = entry_rh.get().strip() or "localhost"
+            rp_str = entry_rp.get().strip() or lp_str
+            lbl_str = entry_lbl.get().strip() or f"Port {lp_str}"
+
+            if not lp_str.isdigit() or not rp_str.isdigit():
+                messagebox.showwarning("Input Error", "Port harus berupa angka valid (1 - 65535).", parent=dialog)
+                return
+
+            l_val = int(lp_str)
+            r_val = int(rp_str)
+            if not (1 <= l_val <= 65535) or not (1 <= r_val <= 65535):
+                messagebox.showwarning("Input Error", "Nomor port harus berada dalam rentang 1 - 65535.", parent=dialog)
+                return
+
+            # Check duplicate Local Port with other rules
+            for other_id in self.port_tree.get_children():
+                if other_id != item_id:
+                    other_vals = self.port_tree.item(other_id, "values")
+                    if other_vals:
+                        try:
+                            if int(other_vals[1]) == l_val:
+                                other_label = other_vals[3] or f"Port {l_val}"
+                                messagebox.showwarning(
+                                    "Port Bentrok",
+                                    f"Local port {l_val} sudah digunakan oleh rule lain: '{other_label}'.\n"
+                                    "Dua port forwarding lokal tidak dapat menggunakan nomor port yang sama.",
+                                    parent=dialog
+                                )
+                                return
+                        except (ValueError, IndexError):
+                            pass
+
+            new_enabled = enabled_var.get()
+            enabled_badge = "✓ Enabled" if new_enabled else "✕ Disabled"
+
+            curr_status = vals[4] if len(vals) > 4 else "○ Idle"
+            if not new_enabled:
+                curr_status = "Disabled"
+            elif curr_status == "Disabled":
+                curr_status = "○ Idle"
+
+            self.port_tree.item(
+                item_id,
+                values=(enabled_badge, l_val, f"{rh_str}:{r_val}", lbl_str, curr_status)
+            )
+
+            self.update_command_preview()
+            self.log(f"Rule port {l_val} berhasil diperbarui ({rh_str}:{r_val} - {lbl_str}).", "info")
+            dialog.destroy()
+
+            # Offer to restart forwarding if currently active
+            if self.is_forwarding:
+                should_restart = messagebox.askyesno(
+                    "Restart Forwarding?",
+                    "Port forwarding saat ini sedang berjalan.\n\n"
+                    "Apakah Anda ingin me-restart port forwarding sekarang agar perubahan rule langsung diterapkan?"
+                )
+                if should_restart:
+                    self.restart_forwarding()
+
+        save_btn = tk.Button(btn_row, text="Save Changes", bg=self.accent_blue, fg="#0f172a",
+                             font=("Segoe UI", 9, "bold"), command=save_edits, relief="flat", padx=14, pady=3)
+        save_btn.pack(side=tk.RIGHT, padx=4)
+
+        cancel_btn = tk.Button(btn_row, text="Cancel", bg=self.bg_input, fg=self.text_main,
+                               font=("Segoe UI", 9), command=dialog.destroy, relief="flat", padx=10, pady=3)
+        cancel_btn.pack(side=tk.RIGHT)
+
+        entry_lp.bind("<Return>", lambda e: save_edits())
+        entry_rh.bind("<Return>", lambda e: save_edits())
+        entry_rp.bind("<Return>", lambda e: save_edits())
+        entry_lbl.bind("<Return>", lambda e: save_edits())
+        entry_lp.focus_set()
+
+    def on_rule_double_click(self, event):
+        item = self.port_tree.identify_row(event.y)
+        if item:
+            self.port_tree.selection_set(item)
+            self.root.after(10, self.edit_selected_rule)
+        return "break"
 
     def on_toggle_rule_click(self, event):
         item = self.port_tree.identify_row(event.y)
@@ -1050,7 +1244,15 @@ class SSHMultiPortForwarderApp:
         dialog.geometry("640x260")
         dialog.configure(bg=self.bg_card)
         dialog.transient(self.root)
-        dialog.grab_set()
+        dialog.update_idletasks()
+        try:
+            dialog.grab_set()
+        except tk.TclError:
+            try:
+                dialog.wait_visibility()
+                dialog.grab_set()
+            except tk.TclError:
+                pass
 
         tk.Label(dialog, text="Paste SSH Command di sini:", bg=self.bg_card,
                  fg=self.text_main, font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=14, pady=(12, 4))
@@ -1201,6 +1403,12 @@ class SSHMultiPortForwarderApp:
 
         threading.Thread(target=_stop_worker, daemon=True).start()
 
+    def restart_forwarding(self):
+        """Stops current port forwarding and restarts it with updated rules."""
+        self.log("Memulai ulang port forwarding dengan aturan yang diperbarui...", "info")
+        self.stop_forwarding()
+        self.root.after(800, self.start_forwarding)
+
     # ==========================
     # Logging
     # ==========================
@@ -1335,7 +1543,15 @@ class SSHMultiPortForwarderApp:
         dialog.geometry("340x140")
         dialog.configure(bg=self.bg_card)
         dialog.transient(self.root)
-        dialog.grab_set()
+        dialog.update_idletasks()
+        try:
+            dialog.grab_set()
+        except tk.TclError:
+            try:
+                dialog.wait_visibility()
+                dialog.grab_set()
+            except tk.TclError:
+                pass
 
         tk.Label(dialog, text="Nama Profile Baru:", bg=self.bg_card, fg=self.text_main,
                  font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=14, pady=(14, 4))
