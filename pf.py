@@ -723,6 +723,8 @@ class SSHMultiPortForwarderApp:
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.port_tree.bind("<Double-1>", self.on_rule_double_click)
+        self.port_tree.bind("<F2>", self.on_f2_pressed)
+        self.root.bind("<F2>", self.on_f2_pressed)
 
         tbl_actions = tk.Frame(ports_card, bg=self.bg_card)
         tbl_actions.pack(fill=tk.X, pady=(6, 0))
@@ -736,7 +738,7 @@ class SSHMultiPortForwarderApp:
         tk.Button(tbl_actions, text="Clear All", bg=self.bg_input, fg=self.text_muted,
                   font=("Segoe UI", 8), command=self.clear_all_rules, relief="flat", padx=8).pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(tbl_actions, text="Tip: Klik judul untuk sort | Double-click untuk edit", style="Muted.TLabel").pack(side=tk.RIGHT)
+        ttk.Label(tbl_actions, text="Tip: Klik judul untuk sort | Double-click / F2 untuk edit", style="Muted.TLabel").pack(side=tk.RIGHT)
 
         # 4. Command Preview & Quick Import
         cmd_card = tk.LabelFrame(main_container, text=" SSH Command (-L Multi-Port) ", bg=self.bg_card,
@@ -1182,6 +1184,11 @@ class SSHMultiPortForwarderApp:
             self.port_tree.selection_set(item)
             self.root.after(10, self.edit_selected_rule)
         return "break"
+
+    def on_f2_pressed(self, event=None):
+        if self.port_tree.selection():
+            self.edit_selected_rule()
+            return "break"
 
     def on_toggle_rule_click(self, event):
         item = self.port_tree.identify_row(event.y)
