@@ -698,11 +698,17 @@ class SSHMultiPortForwarderApp:
         columns = ("enabled", "local", "remote_target", "label", "status")
         self.port_tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=5, selectmode="extended")
         
-        self.port_tree.heading("enabled", text="Active")
-        self.port_tree.heading("local", text="Local Port")
-        self.port_tree.heading("remote_target", text="Remote Target")
-        self.port_tree.heading("label", text="Service / Description")
-        self.port_tree.heading("status", text="Tunnel Status")
+        self.column_titles = {
+            "enabled": "Active",
+            "local": "Local Port",
+            "remote_target": "Remote Target",
+            "label": "Service / Description",
+            "status": "Tunnel Status"
+        }
+        self.sort_state = {"col": None, "reverse": False}
+
+        for col, title in self.column_titles.items():
+            self.port_tree.heading(col, text=title, command=lambda c=col: self.sort_tree_column(c))
 
         self.port_tree.column("enabled", width=70, anchor="center")
         self.port_tree.column("local", width=95, anchor="center")
@@ -730,7 +736,7 @@ class SSHMultiPortForwarderApp:
         tk.Button(tbl_actions, text="Clear All", bg=self.bg_input, fg=self.text_muted,
                   font=("Segoe UI", 8), command=self.clear_all_rules, relief="flat", padx=8).pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(tbl_actions, text="Tip: Double-click row to edit", style="Muted.TLabel").pack(side=tk.RIGHT)
+        ttk.Label(tbl_actions, text="Tip: Klik judul untuk sort | Double-click untuk edit", style="Muted.TLabel").pack(side=tk.RIGHT)
 
         # 4. Command Preview & Quick Import
         cmd_card = tk.LabelFrame(main_container, text=" SSH Command (-L Multi-Port) ", bg=self.bg_card,
@@ -1119,6 +1125,56 @@ class SSHMultiPortForwarderApp:
         entry_rp.bind("<Return>", lambda e: save_edits())
         entry_lbl.bind("<Return>", lambda e: save_edits())
         entry_lp.focus_set()
+
+    def sort_tree_column(self, col):
+        """Sorts the port Treeview by the clicked column and toggles ascending/descending."""
+        if self.sort_state["col"] == col:
+            reverse = not self.sort_state["reverse"]
+        else:
+            reverse = False
+        self.sort_state["col"] = col
+        self.sort_state["reverse"] = reverse
+
+        items = self.port_tree.get_children("")
+        if not items:
+            return
+
+        data = []
+        for item_id in items:
+            val = self.port_tree.set(item_id, col)
+            if col == "local":
+                try:
+                    sort_key = int(val)
+                except (ValueError, TypeError):
+                    sort_key = 0
+            elif col == "enabled":
+                sort_key = 0 if "Enabled" in str(val) else 1
+            elif col == "remote_target":
+                try:
+                    parts = str(val).rsplit(":", 1)
+                    host = parts[0].lower()
+                    port = int(parts[1]) if len(parts) > 1 else 0
+                    sort_key = (host, port)
+                except Exception:
+                    sort_key = (str(val).lower(), 0)
+            else:
+                sort_key = str(val).lower()
+
+            data.append((sort_key, item_id))
+
+        data.sort(key=lambda t: t[0], reverse=reverse)
+
+        for index, (_, item_id) in enumerate(data):
+            self.port_tree.move(item_id, "", index)
+
+        arrow = " ▼" if reverse else " ▲"
+        for c, base_title in self.column_titles.items():
+            if c == col:
+                self.port_tree.heading(c, text=f"{base_title}{arrow}")
+            else:
+                self.port_tree.heading(c, text=base_title)
+
+        self.update_command_preview()
 
     def on_rule_double_click(self, event):
         item = self.port_tree.identify_row(event.y)
